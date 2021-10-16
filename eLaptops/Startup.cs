@@ -1,6 +1,14 @@
+using eLaptops.Data;
+using eLaptops.Data.Cart;
+using eLaptops.Data.Services;
+using eLaptops.Models;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpsPolicy;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -23,7 +31,33 @@ namespace eLaptops
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            //DbContext Configuration
+            services.AddDbContext<AppDbContext>(options => options.UseSqlServer(Configuration.GetConnectionString("DefaultConnectionString")));
+
+            //Services configuration
+            services.AddScoped<ILaptopsService, LaptopsService>();
+
+            services.AddScoped<IOrdersService, OrdersService>();
+
+            services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+
+            services.AddScoped(sc => ShoppingCart.GetShoppingCart(sc));
+
+            //Authentication and Authorization
+            services.AddIdentity<ApplicationUser, IdentityRole>().AddEntityFrameworkStores<AppDbContext>();
+
+            services.AddMemoryCache();
+
+            services.AddSession();
+
+            services.AddAuthentication(options =>
+            {
+                options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+            });
+
             services.AddControllersWithViews();
+
+
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -44,6 +78,13 @@ namespace eLaptops
 
             app.UseRouting();
 
+            app.UseSession();
+
+            //Authentication and Authorization
+
+            app.UseAuthentication();
+            app.UseAuthorization();
+
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>
@@ -52,6 +93,11 @@ namespace eLaptops
                     name: "default",
                     pattern: "{controller=Home}/{action=Index}/{id?}");
             });
+
+            //Seed Database
+            AppDbInitializer.Seed(app);
+
+            AppDbInitializer.SeedUsersAndRolesAsync(app).Wait();
         }
     }
 }
